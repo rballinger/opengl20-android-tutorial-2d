@@ -36,7 +36,7 @@ public class GLSurf extends GLSurfaceView {
 
     @Override
     public boolean onTouchEvent(MotionEvent e) {
-        mRenderer.processTouchEvent(e);
+        // mRenderer.processTouchEvent(e);
         return true;
     }
 }

@@ -4,6 +4,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;
+import java.util.Random;
+import java.util.Vector;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -47,6 +49,8 @@ public class GLRenderer implements Renderer {
     float   swp = 320.0f;
     float   shp = 480.0f;
 
+    TextManager tm;
+
     // Misc
     Context mContext;
     long mLastTime;
@@ -56,6 +60,7 @@ public class GLRenderer implements Renderer {
     {
         mContext = c;
         mLastTime = System.currentTimeMillis() + 100;
+        // sprite = new Sprite();
     }
 
     public void onPause()
@@ -82,10 +87,14 @@ public class GLRenderer implements Renderer {
         long elapsed = now - mLastTime;
 
         // Update our example
-        UpdateSprite();
+        // UpdateSprite();
 
         // Render our example
         Render(mtrxProjectionAndView);
+
+        // Render the text
+        if(tm!=null)
+            tm.Draw(mtrxProjectionAndView);
 
         // Save the current time to see how long it took :).
         mLastTime = now;
@@ -93,6 +102,8 @@ public class GLRenderer implements Renderer {
     }
 
     private void Render(float[] m) {
+        // Set our shaderprogram to image shader
+        GLES20.glUseProgram(riGraphicTools.sp_Image);
 
         // clear Screen and Depth Buffer, we have set the clear color as black.
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
@@ -182,9 +193,14 @@ public class GLRenderer implements Renderer {
         SetupTriangle();
         // Create the image information
         SetupImage();
+        // Create our texts
+        SetupText();
 
         // Set the clear color to black
         GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1);
+
+        GLES20.glEnable(GLES20.GL_BLEND);
+        GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
 
         // Create the shaders, solid color
         int vertexShader = riGraphicTools.loadShader(GLES20.GL_VERTEX_SHADER, riGraphicTools.vs_SolidColor);
@@ -204,6 +220,17 @@ public class GLRenderer implements Renderer {
         GLES20.glAttachShader(riGraphicTools.sp_Image, fragmentShader); // add the fragment shader to program
         GLES20.glLinkProgram(riGraphicTools.sp_Image);                  // creates OpenGL ES program executables
 
+        // Text shader
+        int vshadert = riGraphicTools.loadShader(GLES20.GL_VERTEX_SHADER,
+                riGraphicTools.vs_Text);
+        int fshadert = riGraphicTools.loadShader(GLES20.GL_FRAGMENT_SHADER,
+                riGraphicTools.fs_Text);
+
+        riGraphicTools.sp_Text = GLES20.glCreateProgram();
+        GLES20.glAttachShader(riGraphicTools.sp_Text, vshadert);
+        GLES20.glAttachShader(riGraphicTools.sp_Text, fshadert);
+        GLES20.glLinkProgram(riGraphicTools.sp_Text);
+
 
         // Set our shader programm
         GLES20.glUseProgram(riGraphicTools.sp_Image);
@@ -211,13 +238,30 @@ public class GLRenderer implements Renderer {
 
     public void SetupImage()
     {
-        // Create our UV coordinates.
-        uvs = new float[] {
-                0.0f, 0.0f,
-                0.0f, 1.0f,
-                1.0f, 1.0f,
-                1.0f, 0.0f
-        };
+        // We will use a randomizer for randomizing the textures from texture atlas.
+        // This is strictly optional as it only effects the output of our app,
+        // Not the actual knowledge.
+        Random rnd = new Random();
+
+        // 30 imageobjects times 4 vertices times (u and v)
+        uvs = new float[30*4*2];
+
+        // We will make 30 randomly textures objects
+        for(int i=0; i<30; i++)
+        {
+            int random_u_offset = rnd.nextInt(2);
+            int random_v_offset = rnd.nextInt(2);
+
+            // Adding the UV's using the offsets
+            uvs[(i*8) + 0] = random_u_offset * 0.5f;
+            uvs[(i*8) + 1] = random_v_offset * 0.5f;
+            uvs[(i*8) + 2] = random_u_offset * 0.5f;
+            uvs[(i*8) + 3] = (random_v_offset+1) * 0.5f;
+            uvs[(i*8) + 4] = (random_u_offset+1) * 0.5f;
+            uvs[(i*8) + 5] = (random_v_offset+1) * 0.5f;
+            uvs[(i*8) + 6] = (random_u_offset+1) * 0.5f;
+            uvs[(i*8) + 7] = random_v_offset * 0.5f;
+        }
 
         // The texture buffer
         ByteBuffer bb = ByteBuffer.allocateDirect(uvs.length * 4);
@@ -227,11 +271,11 @@ public class GLRenderer implements Renderer {
         uvBuffer.position(0);
 
         // Generate Textures, if more needed, alter these numbers.
-        int[] texturenames = new int[1];
-        GLES20.glGenTextures(1, texturenames, 0);
+        int[] texturenames = new int[2];
+        GLES20.glGenTextures(2, texturenames, 0);
 
         // Retrieve our image from resources.
-        int id = mContext.getResources().getIdentifier("mipmap/ic_launcher", null, mContext.getPackageName());
+        int id = mContext.getResources().getIdentifier("mipmap/textureatlas", null, mContext.getPackageName());
 
         // Temporary create a bitmap
         Bitmap bmp = BitmapFactory.decodeResource(mContext.getResources(), id);
@@ -250,17 +294,68 @@ public class GLRenderer implements Renderer {
         // We are done using the bitmap so we should recycle it.
         bmp.recycle();
 
+        // Again for the text texture
+        id = mContext.getResources().getIdentifier("mipmap/font", null,
+                mContext.getPackageName());
+        bmp = BitmapFactory.decodeResource(mContext.getResources(), id);
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + 1);
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, texturenames[1]);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER,
+                GLES20.GL_LINEAR);
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER,
+                GLES20.GL_LINEAR);
+        GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0);
+        bmp.recycle();
+
     }
 
     public void SetupTriangle()
     {
-        sprite = new Sprite();
+        // We will need a randomizer
+        Random rnd = new Random();
 
-        // Get information of sprite.
-        vertices = sprite.getTransformedVertices();
+        // Our collection of vertices
+        vertices = new float[30*4*3];
 
-        // The order of vertexrendering for a quad
-        indices = new short[]{0, 1, 2, 0, 2, 3};
+        // Create the vertex data
+        for(int i=0;i<30;i++)
+        {
+            int offset_x = rnd.nextInt((int)swp);
+            int offset_y = rnd.nextInt((int)shp);
+
+            // Create the 2D parts of our 3D vertices, others are default 0.0f
+            vertices[(i*12) + 0] = offset_x;
+            vertices[(i*12) + 1] = offset_y + (30.0f*ssu);
+            vertices[(i*12) + 2] = 0f;
+            vertices[(i*12) + 3] = offset_x;
+            vertices[(i*12) + 4] = offset_y;
+            vertices[(i*12) + 5] = 0f;
+            vertices[(i*12) + 6] = offset_x + (30.0f*ssu);
+            vertices[(i*12) + 7] = offset_y;
+            vertices[(i*12) + 8] = 0f;
+            vertices[(i*12) + 9] = offset_x + (30.0f*ssu);
+            vertices[(i*12) + 10] = offset_y + (30.0f*ssu);
+            vertices[(i*12) + 11] = 0f;
+        }
+
+        // The indices for all textured quads
+        indices = new short[30*6];
+        int last = 0;
+        for(int i=0;i<30;i++)
+        {
+            // We need to set the new indices for the new quad
+            indices[(i*6) + 0] = (short) (last + 0);
+            indices[(i*6) + 1] = (short) (last + 1);
+            indices[(i*6) + 2] = (short) (last + 2);
+            indices[(i*6) + 3] = (short) (last + 0);
+            indices[(i*6) + 4] = (short) (last + 2);
+            indices[(i*6) + 5] = (short) (last + 3);
+
+            // Our indices are connected to the vertices so we need to keep them
+            // in the correct order.
+            // normal quad = 0,1,2,0,2,3 so the next one will be 4,5,6,4,6,7
+            last = last + 4;
+        }
 
         // The vertex buffer.
         ByteBuffer bb = ByteBuffer.allocateDirect(vertices.length * 4);
@@ -275,6 +370,27 @@ public class GLRenderer implements Renderer {
         drawListBuffer = dlb.asShortBuffer();
         drawListBuffer.put(indices);
         drawListBuffer.position(0);
+    }
+
+    public void SetupText()
+    {
+        // Create our text manager
+        tm = new TextManager();
+
+        // Tell our text manager to use index 1 of textures loaded
+        tm.setTextureID(1);
+
+        // Pass the uniform scale
+        tm.setUniformscale(ssu);
+
+        // Create our new textobject
+        TextObject txt = new TextObject("hello world", 10f, 10f);
+
+        // Add it to our manager
+        tm.addText(txt);
+
+        // Prepare the text for rendering
+        tm.PrepareDraw();
     }
 
     public void UpdateSprite()
