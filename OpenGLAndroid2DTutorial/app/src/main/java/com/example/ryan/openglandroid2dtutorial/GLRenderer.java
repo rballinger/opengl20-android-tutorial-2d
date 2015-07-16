@@ -11,7 +11,9 @@ import javax.microedition.khronos.opengles.GL10;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.PointF;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.opengl.GLSurfaceView.Renderer;
@@ -38,6 +40,12 @@ public class GLRenderer implements Renderer {
     // Our screenresolution
     float	mScreenWidth = 1280;
     float	mScreenHeight = 768;
+
+    float   ssu = 1.0f;
+    float   ssx = 1.0f;
+    float   ssy = 1.0f;
+    float   swp = 320.0f;
+    float   shp = 480.0f;
 
     // Misc
     Context mContext;
@@ -161,10 +169,14 @@ public class GLRenderer implements Renderer {
         // Calculate the projection and view transformation
         Matrix.multiplyMM(mtrxProjectionAndView, 0, mtrxProjection, 0, mtrxView, 0);
 
+        // Setup our scaling system
+        SetupScaling();
     }
 
     @Override
     public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+        // Setup our scaling system
+        SetupScaling();
 
         // Create the triangles
         SetupTriangle();
@@ -248,7 +260,7 @@ public class GLRenderer implements Renderer {
         vertices = sprite.getTransformedVertices();
 
         // The order of vertexrendering for a quad
-        indices = new short[] {0, 1, 2, 0, 2, 3};
+        indices = new short[]{0, 1, 2, 0, 2, 3};
 
         // The vertex buffer.
         ByteBuffer bb = ByteBuffer.allocateDirect(vertices.length * 4);
@@ -289,7 +301,7 @@ public class GLRenderer implements Renderer {
             if(event.getY() < screenheightpart)
                 sprite.scale(-0.01f);
             else if(event.getY() < (screenheightpart*2))
-                sprite.translate(-10f, -10f);
+                sprite.translate(-10f*ssu, -10f*ssu);
             else
                 sprite.rotate(0.01f);
         }
@@ -299,9 +311,119 @@ public class GLRenderer implements Renderer {
             if(event.getY() < screenheightpart)
                 sprite.scale(0.01f);
             else if(event.getY() < (screenheightpart*2))
-                sprite.translate(10f, 10f);
+                sprite.translate(10f*ssu, 10f*ssu);
             else
                 sprite.rotate(-0.01f);
+        }
+    }
+
+    public void SetupScaling()
+    {
+        // The screen resolutions
+        swp = (int) (mContext.getResources().getDisplayMetrics().widthPixels);
+        shp = (int) (mContext.getResources().getDisplayMetrics().heightPixels);
+
+        // Orientation is assumed portrait
+        ssx = swp / 320.0f;
+        ssy = shp / 480.0f;
+
+        // Get our uniform scaler
+        if(ssx > ssy)
+            ssu = ssy;
+        else
+            ssu = ssx;
+    }
+
+
+
+    class Sprite
+    {
+        float angle;
+        float scale;
+        RectF base;
+        PointF translation;
+
+        public Sprite()
+        {
+            // Initialise our intital size around the 0,0 point
+            base = new RectF(-50f*ssu, 50f*ssu, 50f*ssu, -50f*ssu);
+
+            // Initial translation
+            translation = new PointF(50f*ssu,50f*ssu);
+
+            // We start with our inital size
+            scale = 1f;
+
+            // We start in our inital angle
+            angle = 0f;
+        }
+
+
+        public void translate(float deltax, float deltay)
+        {
+            // Update our location.
+            translation.x += deltax;
+            translation.y += deltay;
+        }
+
+        public void scale(float deltas)
+        {
+            scale += deltas;
+        }
+
+        public void rotate(float deltaa)
+        {
+            angle += deltaa;
+        }
+
+        public float[] getTransformedVertices()
+        {
+            // Start with scaling
+            float x1 = base.left * scale;
+            float x2 = base.right * scale;
+            float y1 = base.bottom * scale;
+            float y2 = base.top * scale;
+
+            // We now detach from our Rect because when rotating,
+            // we need the seperate points, so we do so in opengl order
+            PointF one = new PointF(x1, y2);
+            PointF two = new PointF(x1, y1);
+            PointF three = new PointF(x2, y1);
+            PointF four = new PointF(x2, y2);
+
+            // We create the sin and cos function once,
+            // so we do not have calculate them each time.
+            float s = (float) Math.sin(angle);
+            float c = (float) Math.cos(angle);
+
+            // Then we rotate each point
+            one.x = x1 * c - y2 * s;
+            one.y = x1 * s + y2 * c;
+            two.x = x1 * c - y1 * s;
+            two.y = x1 * s + y1 * c;
+            three.x = x2 * c - y1 * s;
+            three.y = x2 * s + y1 * c;
+            four.x = x2 * c - y2 * s;
+            four.y = x2 * s + y2 * c;
+
+            // Finally we translate the sprite to its correct position.
+            one.x += translation.x;
+            one.y += translation.y;
+            two.x += translation.x;
+            two.y += translation.y;
+            three.x += translation.x;
+            three.y += translation.y;
+            four.x += translation.x;
+            four.y += translation.y;
+
+            // We now return our float array of vertices.
+            return new float[]
+                    {
+                            one.x, one.y, 0.0f,
+                            two.x, two.y, 0.0f,
+                            three.x, three.y, 0.0f,
+                            four.x, four.y, 0.0f,
+                    };
         }
     }
 }
