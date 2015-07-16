@@ -11,11 +11,13 @@ import javax.microedition.khronos.opengles.GL10;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Rect;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.opengl.GLSurfaceView.Renderer;
 import android.opengl.Matrix;
 import android.util.Log;
+import android.view.MotionEvent;
 
 public class GLRenderer implements Renderer {
 
@@ -31,6 +33,7 @@ public class GLRenderer implements Renderer {
     public FloatBuffer vertexBuffer;
     public ShortBuffer drawListBuffer;
     public FloatBuffer uvBuffer;
+    public Rect image;
 
     // Our screenresolution
     float	mScreenWidth = 1280;
@@ -238,6 +241,13 @@ public class GLRenderer implements Renderer {
 
     public void SetupTriangle()
     {
+        // Initial rect
+        image = new Rect();
+        image.left = 10;
+        image.right = 100;
+        image.bottom = 100;
+        image.top = 200;
+
         // We have to create the vertices of our triangle.
         vertices = new float[]
                 {10.0f, 200f, 0.0f,
@@ -261,7 +271,40 @@ public class GLRenderer implements Renderer {
         drawListBuffer = dlb.asShortBuffer();
         drawListBuffer.put(indices);
         drawListBuffer.position(0);
+    }
 
+    public void TranslateSprite()
+    {
+        vertices = new float[]
+                {image.left, image.top, 0.0f,
+                        image.left, image.bottom, 0.0f,
+                        image.right, image.bottom, 0.0f,
+                        image.right, image.top, 0.0f,
+                };
+        // The vertex buffer.
+        ByteBuffer bb = ByteBuffer.allocateDirect(vertices.length * 4);
+        bb.order(ByteOrder.nativeOrder());
+        vertexBuffer = bb.asFloatBuffer();
+        vertexBuffer.put(vertices);
+        vertexBuffer.position(0);
+    }
 
+    public void processTouchEvent(MotionEvent event)
+    {
+        // Get the half of screen value
+        int screenhalf = (int) (mScreenWidth / 2);
+        if(event.getX()<screenhalf)
+        {
+            image.left -= 10;
+            image.right -= 10;
+        }
+        else
+        {
+            image.left += 10;
+            image.right += 10;
+        }
+
+        // Update the new data.
+        TranslateSprite();
     }
 }

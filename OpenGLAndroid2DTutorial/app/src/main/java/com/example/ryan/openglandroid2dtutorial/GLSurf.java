@@ -2,6 +2,7 @@ package com.example.ryan.openglandroid2dtutorial;
 
 import android.content.Context;
 import android.opengl.GLSurfaceView;
+import android.view.MotionEvent;
 
 public class GLSurf extends GLSurfaceView {
 
@@ -33,4 +34,9 @@ public class GLSurf extends GLSurfaceView {
         mRenderer.onResume();
     }
 
+    @Override
+    public boolean onTouchEvent(MotionEvent e) {
+        mRenderer.processTouchEvent(e);
+        return true;
+    }
 }
