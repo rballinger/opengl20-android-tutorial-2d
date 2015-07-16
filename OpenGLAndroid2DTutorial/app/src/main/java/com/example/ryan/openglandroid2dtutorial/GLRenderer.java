@@ -33,7 +33,7 @@ public class GLRenderer implements Renderer {
     public FloatBuffer vertexBuffer;
     public ShortBuffer drawListBuffer;
     public FloatBuffer uvBuffer;
-    public Rect image;
+    public Sprite sprite;
 
     // Our screenresolution
     float	mScreenWidth = 1280;
@@ -74,6 +74,7 @@ public class GLRenderer implements Renderer {
         long elapsed = now - mLastTime;
 
         // Update our example
+        UpdateSprite();
 
         // Render our example
         Render(mtrxProjectionAndView);
@@ -241,22 +242,13 @@ public class GLRenderer implements Renderer {
 
     public void SetupTriangle()
     {
-        // Initial rect
-        image = new Rect();
-        image.left = 10;
-        image.right = 100;
-        image.bottom = 100;
-        image.top = 200;
+        sprite = new Sprite();
 
-        // We have to create the vertices of our triangle.
-        vertices = new float[]
-                {10.0f, 200f, 0.0f,
-                        10.0f, 100f, 0.0f,
-                        100f, 100f, 0.0f,
-                        100f, 200f, 0.0f,
-                };
+        // Get information of sprite.
+        vertices = sprite.getTransformedVertices();
 
-        indices = new short[] {0, 1, 2, 0, 2, 3}; // The order of vertexrendering.
+        // The order of vertexrendering for a quad
+        indices = new short[] {0, 1, 2, 0, 2, 3};
 
         // The vertex buffer.
         ByteBuffer bb = ByteBuffer.allocateDirect(vertices.length * 4);
@@ -273,14 +265,11 @@ public class GLRenderer implements Renderer {
         drawListBuffer.position(0);
     }
 
-    public void TranslateSprite()
+    public void UpdateSprite()
     {
-        vertices = new float[]
-                {image.left, image.top, 0.0f,
-                        image.left, image.bottom, 0.0f,
-                        image.right, image.bottom, 0.0f,
-                        image.right, image.top, 0.0f,
-                };
+        // Get new transformed vertices
+        vertices = sprite.getTransformedVertices();
+
         // The vertex buffer.
         ByteBuffer bb = ByteBuffer.allocateDirect(vertices.length * 4);
         bb.order(ByteOrder.nativeOrder());
@@ -293,18 +282,26 @@ public class GLRenderer implements Renderer {
     {
         // Get the half of screen value
         int screenhalf = (int) (mScreenWidth / 2);
+        int screenheightpart = (int) (mScreenHeight / 3);
         if(event.getX()<screenhalf)
         {
-            image.left -= 10;
-            image.right -= 10;
+            // Left screen touch
+            if(event.getY() < screenheightpart)
+                sprite.scale(-0.01f);
+            else if(event.getY() < (screenheightpart*2))
+                sprite.translate(-10f, -10f);
+            else
+                sprite.rotate(0.01f);
         }
         else
         {
-            image.left += 10;
-            image.right += 10;
+            // Right screen touch
+            if(event.getY() < screenheightpart)
+                sprite.scale(0.01f);
+            else if(event.getY() < (screenheightpart*2))
+                sprite.translate(10f, 10f);
+            else
+                sprite.rotate(-0.01f);
         }
-
-        // Update the new data.
-        TranslateSprite();
     }
 }
